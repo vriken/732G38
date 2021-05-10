@@ -1,3 +1,4 @@
+
 ---
 title: "Laboration 1"
 author:
@@ -6,6 +7,7 @@ author:
 date: '2021-05-10'
 output:
   pdf_document:
+    latex_engine: xelatex
     fig_caption: yes
     number_sections: yes
   html_document:
@@ -13,6 +15,7 @@ output:
 geometry: top=100pt,bottom=100pt,left=68pt,right=66pt
 subtitle: 732G38
 header-includes:
+- \usepackage[utf8]{inputenc}
 - \usepackage{float}
 - \usepackage{longtable}
 - \usepackage{caption}
@@ -59,6 +62,7 @@ header-includes:
 \setcounter{tocdepth}{3}
 \tableofcontents
 
+
 <!-- Anger sidbrytning -->
 \clearpage
 
@@ -73,7 +77,7 @@ Introducera laborationen; de datamaterial som används, målen med uppgifterna o
 ```{r, echo = FALSE, include = FALSE}
 #include = FALSE tar bort alla utskrifter som kommer från laddning av data eller paket
 options(scipen = 100)
-libraries <- c("survey", "dplyr", "ggplot2", "knitr", "GGally", "xtable")
+libraries <- c("survey", "dplyr", "ggplot2", "knitr", "GGally", "xtable", "irr", "psych")
 
 #require(libraries)
 invisible(lapply(libraries, require, character.only = TRUE))
@@ -81,12 +85,155 @@ invisible(lapply(libraries, require, character.only = TRUE))
 ```
 
 ```{r, echo = FALSE}
-agpop <- read.table("")
+agpop <- read.table("https://raw.githubusercontent.com/vriken/732G38/main/agpop.dat", header = TRUE, sep = ",")
+
+agpop <-
+  agpop %>%
+  dplyr::filter(
+    ACRES92 > 0,
+    ACRES87 > 0
+  )
+OSUindex <- sample(size = 300, 1:nrow(agpop), replace = FALSE)
+agOSUdata <- agpop[OSUindex,]
+fpc.srs <- rep(nrow(agpop), 300)
+agOSU <- svydesign(ids = ~1, data = agOSUdata, fpc = fpc.srs)
+``` 
+
+<!-- Anger sidbrytning -->
+\clearpage
+
+# Designeffekter
+## Skattning av designeffekten
+```{r, echo = FALSE, include = FALSE} 
+#options(digits =5)
+k <-svymean(~ACRES92, design = agOSU, deff = TRUE)
+d <- svymean(~ACRES87, design = agOSU, deff = TRUE)
+#print(k)
 ```
+### a)  Om du skulle räkna ut designeffekten för hand, hur ser formeln ut?
+
+Designeffekten rent generellt skulle räknas ut genom 
+$$\frac{V(Estimator från samplingen)}{V(Estimator från OSU med samma nummer av observationsenheter)}$$
+Exempel för detta skulle kunna vara 
+$$\frac{V(Ybar)}{1-n/N}*\frac{s^2}{n}$$
+
+### b)  Vad får du för designeffekt? Reflektera över vad designeffekter beskriver och motivera varför du får detta resultat.
+Designeffekten som ges är 1, med andra ord, är inte designen mindre effektiv än ett hypotetiskt OSU men inte heller bättre, utan på en normal bra nivå. Designeffekten indikerar
+även hur många observationer med den komplexa urvalsdesignen som behövs för att kunna uppnå samma precision som uppnås med ett OSU, i samband med att designeffekten som gavs
+var 1 innebär det att vi inte behöver ändra på antal observationer. 
+
+### c)  Hur skulle du tolka det värde som du fått i b) med tanke på de två urvalsdesignerna som anges i den teoretiska formeln?
+Designeffekter beskriver urvalsdesignens effektivitet, ifall att designeffekten är mindre än 1 så indikerar det att urvalsdesignen leder till en mindre varians jämfört med ett OSU, 
+och därmed mer effektivt. Om designeffekten däremot är större än 1 så är urvalsdesignen mindre effektiv än ett OSU. Desto större designeffekten är, desto större 
+urval behövs för att uppnå samma effektivitet som vid ett OSU. En designeffekt på till exempel 6 innebär att man måste multiplicera urvalsstorleken med 6 för att kunna uppnå 
+samma effektivitet som vid ett OSU.
+
+<!-- Anger sidbrytning -->
+\clearpage
+
+## Kvotskattning
+"Vi kan med hjälp av tidigare insamlad information öka precisionen i våra skattningar. För kvotskattningen kan vi ta hjälp av en hjälpvariabel
+för att skatta variabeln ``ACRES92`` med bättre precision. Det första steget i denna metod måste vi skatta kvoten mellan mät- och hjälpvariabeln med funktionen
+``svyratio()``.
+För att använda denna kvot med vår kända populationstotal från hjälpvariabeln använder vi sedan funktionen ``predict()``.
+Denna funktion använder alltså vår kvotskattning tillsammans med en totalmängd som vi känner till för hela populationen för att skatta mätvariabeln."
+
+Detta görs med följande kod 
+``kvotEstimatorn <- svyratio(numerator = ~ACRES92, denominator = ~ACRES87, design = agOSU)``
+``predict(object = kvotEstimatorn, total = sum(agpop$ACRES87))``
+
+```{r, echo = FALSE, include = FALSE}
+kvotEstimatorn <- svyratio(numerator = ~ACRES92, denominator = ~ACRES87, design = agOSU)
+prediction <- predict(object = kvotEstimatorn, total = sum(agpop$ACRES87))
+
+
+icc(agOSUdata[,3:14], model ="twoway",
+    type = "agreement", unit = "single")
+```
+### a) Beräkna korrelationen mellan mät- och hjälpvariabeln och motivera ifall kvotskattning är en lämplig skattningsmetod
+
+Kvotskattning kan bedömas som en lämplig skattningsmetod ifall kvoten är mellan .75 och 1. Kvotens möjliga värden ligger mellan 0 ≤ kvoten ≤ 1.
+Här beräknar vi ICC (intraclass correlation coefficient). Detta görs med formeln 
+$$ICC = 1 - \frac{M}{M-1} \frac{SSW}{SSTO}$$
+Där M är antal ssus, 
+SSW är summan av kvadradetrna inom klustrena,
+och SSTO är totala summan av kvadradetrna.
+
+Utifrån intra-klass korrelationkoefficienten kan vi bedöma att de 12 jordbruk som jämfördes på 300 olika observationer. Fanns det en undermålig enighet
+mellan bruken, genom att använda en två-vägs slumpmodell fick vi ut ett ICC-värde på 0.124, samt ett p-värde på $$1.54*10^-17$$
+
+### b)  Vad får du för precision om du använder en kvotskattning jämför med ett vanligt OSU? Varför får du denna skillnad?
+
+Det normaliserade medelfelet som vi fick från våran skattning, alltså 0.005475556. Vilket vi kan dela med 1, $$\frac{1}{0.005475556}$$. Vilket blir $$182.6299$$.
+Vilket kan tolkas som att precisionen av skattningen är extremt hög.
+
+Medelfelet som vi fick från vårat OSU var 19123 och kvoten av 1/19123 är $$.00005229305$$. Vilket är en extremt låg precision.
+Detta talar alltså i förmån till klusterurvalet, med en väldigt stor signifikans.
+
+### c) Beräkna designeffekten för hand för skattningen i a) och tolka den.
+
+Vi beräknar design effekten genom följande formel. $$Deff \approx 1 + (\bar{m} – 1)\rho$$
+där $$\bar{m}$$ är medel klusterstorleken, och $$\rho$$ är ICC. 
+```{r, echo = FALSE}
+m <- agOSUdata %>% group_by(STATE) %>%
+  summarise(n = n()) %>%
+  summarise(m = mean(n))
+
+rho <- as.numeric(icc(agOSUdata[,3:14], model ="twoway",
+    type = "agreement", unit = "single")[7])
+
+DEFF <- 1 + (as.integer(m) - 1) * rho
+knitr::kable(DEFF, col.names = "Designeffekt")
+```
+Här kan vi se att designeffekten är `r DEFF`. Detta innebär att om man skulle dra ett OSU istället för klusterurvalet i frågan skulle man behöva dra N*`r DEFF` observationer
+
+### c) Skatta medelvärdet med hjälp av kvotestimatorn? Tolka resultatet.
+
+Skattningen av medelvärdet med hjälp av kvotestimatorn fås genom att dela totalvärdet som finns i kvotestimatorn delat på antal observationer gånger antal bruk.
+Alltså $$`r as.numeric(prediction[1])`/`r ncol(agOSUdata[3:14])`*`r nrow(agOSUdata)`$$.
+Vilket är lika med 264436.7. Detta innebär alltså att det skattade antal tunnland per gård är ungefär 26400
 
 
 <!-- Anger sidbrytning -->
 \clearpage
+
+# Stratifierat urval
+
+## Surveyobjekt
+
+### a) Använd funktionen summary() för att få information om det stratifierade surveyobjektet. 
+Vilkaskillnader finns jämfört med objektet gjort på ett OSU? Är det någon information som du anser
+saknas från det nuvarande objektet?
+
+### b) Hur stor är den största respektive den minsta vikten i surveyobjektet?
+
+### c) Vad motsvarar dessa vikter i praktiken?
+
+## Skattningar
+
+### a) Presentera resultaten av dessa skattningar tillsammans med samma skattningar från Laboration 1 OSU.
+Vilka är de största skillnaderna mellan dem?
+
+
+### b) Vad får du för designeffekt med denna nya design? Hur tolkar du detta värde?
+
+
+### c) Finns det några skillnader i skattning och medelfel jämfört med resultaten från uppgift 2.3 i laboration 1?
+
+### d) Jämför denna skattning med resultatet från svyby()-funktionen där vi försöker skatta samma regionsom en redovisningsgrupp. 
+Får du samma resultat? Varför/varför inte?
+
+## Allokering
+
+### a) Presentera en tabell med de beräknade nh, Nh och sh.
+
+### b) Vad får du för skattning och designeffekt?
+
+### c) Blir det bättre eller sämre att använda de egenskapade kategorierna eller REGION som stratifieringsvariabel?
+Varför?
+
+### d) Finns det några andra sätt att förbättra stratifieringen än det vi gjort?
+
 
 
 \pagebreak
