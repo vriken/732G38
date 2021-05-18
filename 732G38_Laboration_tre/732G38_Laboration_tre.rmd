@@ -68,21 +68,214 @@ header-includes:
 
 <!-- Börjar med kapitel 1 -->
 # Introduktion
-Introducera laborationen; de datamaterial som används, målen med uppgifterna och annat förberedande arbete. Detta kan inkludera inläsning av data och paket där all form av output ska vara gömt såvida inget annat anges. För att undvika att förlora värden använder vi oss också av seed nummer 1112
+I denna labb kommer huvudsyftet vara att undersöka hur bortfall påverkar analyser av urval. Vi kommer även testa olika sätt att lösa dessa problem som kan uppstå. Vi kommer använda oss av ett riktigt och ett simulerat exempel. I den första delen kommer vi försöka ge läsaren en bild av hur bortfallen ser ut, och i den andra delen kommer vi att arbeta med det riktiga exemplet. Vi kommer också att använda oss av seed = 666. Detta för att behålla en enhetlighet i våra slumpmässiga variabler.
 
 ```{r echo = FALSE, include = FALSE}
 #include = FALSE tar bort alla utskrifter som kommer från laddning av data eller paket
 options(scipen = 100)
-libraries <- c("survey", "dplyr", "ggplot2", "knitr", "GGally", "xtable", "irr", "psych")
+libraries <- c("survey", "dplyr", "ggplot2", "knitr", "GGally", "xtable", "irr", "psych", "MASS")
 
 #require(libraries)
 invisible(lapply(libraries, require, character.only = TRUE))
+set.seed(666)
 
 ```
 
 
+```{r, echo = FALSE}
+#här läser vi in datan som ska användas
+load(url("https://github.com/vriken/732G38/blob/production/732G38_Laboration_tre/svy2010.Rdata?raw=true"))
+
+``` 
 <!-- Anger sidbrytning -->
 \clearpage
+
+# Bortfallsstudie med simulerade data
+
+## Simulera populationen
+Det som demonstreras nedan är R som kompenserar för bortfall för ett flertal kategoriska variabler.
+
+"Vi kommer inledningsvis simulera den population som vi kommer utgå från i resterande laboration. Vi utgårifrån egenskaper för Linköping kommuns befolkningsdata från 2018 (SCB)."
+
+```{r sex_age, results = "markup"}
+sex <- sample(c("Man", "Kvinna"), 
+# här skapar vi ett "sample" med två kön
+              size = 104962, 
+# här bestämmer vi storleken på vårat "sample"
+              replace = TRUE, 
+# och sätter replace = TRUE, rakt upp och ner
+              prob = c(54782, 50180)/104962) 
+# här sätter vi en sannolikhetsvektor för våran sex-variabel. En för varje kön.
+
+age <- sample(c("15-24", "25-34", "35-44", "45-54", "55-64"), 
+# Här skapar vi ett "sample" på fem stycken åldersgrupper.
+              size = 104962, 
+# och storleken ska vara samma som våran sex-variabel eftersom varje kön måste ha en ålder.
+              replace = TRUE, 
+# och replace = TRUE
+              prob = c(23358,25605,19969,19800,16230)/104962) 
+# här skapar vi en ny sannolikhetsvektor för age-variabeln. En för varje åldersgrupp
+
+sim_pop <- data.frame(sex = sex, age = age) 
+# och till slut skapar vi en dataframe som heter sim_pop med våra två kolumner, sex och age.
+```
+
+* a) Beskriv vad som sker i ovanstående kod genom att kommentera varje rad och beskriv sedan vilken information som sim_pop innehåller.
+
+Koden tar ett "sample" från "Man", och "Kvinna". Och gör en lista med dessa två som är 104962 rader lång. Sannolikheten för män respektive kvinnor är 54782/`r length(sex)`, och 50180/`r length(sex)`, detta är dock bara den första kolumnen för könen. Den andra kolumnen skriver åldrarna och är listan som syns ovan, åldrarna som tas i hänsyn är 15-64.
+Storleken är likadan eftersom varje kön måste ha en ålder. Sannolikheterna för detta är däremot annorlunda och syns också ovan, där varje element i vektorn delas på `r length(sex)`. Precis som i den första sannolikhetsvektorn med könen. Sedan tar vi dessa två kolumner och sätter in de i en dataframe som heter sim_pop.
+<!-- Anger sidbrytning -->
+\clearpage
+
+```{r assault, results = "markup"}
+sim_pop$pAssault <- .001 
+# här sätter vi en standardsannolikhet för att utsättas för misshandel för alla åldersgrupper
+
+sim_pop$pAssault[sim_pop$age == "15-24"] <- .05 
+# här ändrar vi sannolikheten för åldersgruppen 15-24. 
+#Detta eftersom det var större sannolikhet för yngre personer att -
+# - utsättas för misshandel.
+sim_pop$pAssault[sim_pop$age == "25-34"] <- .02 
+# här ändrar vi sannolikheten för åldersgruppen 25-34
+sim_pop$pAssault[sim_pop$age == "35-44"] <- .005 
+# här ändrar vi sannolikheten för åldersgruppen 35-44
+
+sim_pop$pAssault <- sim_pop$pAssault + (1.5 * sim_pop$pAssault * as.numeric(sim_pop$sex == "Man")) 
+# för män adderar vi 1.5 gånger sannolikheten för de respektive -
+# - åldersgrupperna att utsättas för misshandel. 
+# Detta eftersom män har en större benägenhet för att bli utsatta för misshandel.
+sim_pop$assault <- rbinom(n = length(sex), size = 1, prob = sim_pop$pAssault) 
+# här använder vi binomialföredelningen för att räkna ut-
+# -sannolikheten för att en person har råkat ut för misshandel. 
+# Vi använder oss av sannolikheten från pAssault.
+```
+
+* b) Beskriv vad som sker i ovanstående kod genom att kommentera varje rad.
+
+Koden skapar en ny kolumn i sim pop med samma storlek som de andra och sätter alla värden i kolumnen till .001. Sedan sätter vi värdet på denna kolumnen till .05 för åldersgruppen 15-24, .02 för 25-34, och slutligen .005 för 35-44. Detta eftersom olika åldersgrupper har olika benägenhet att bli utsatta för misshandel. Sedan tar vi i hänsyn att män har en större sannolikhet att bli utsatta för misshandel och tar alla mäns sannolikheter gånger 1.5. Sedan skapar vi en till kollumn som räknar ut med hjälp av binomialfördelningen och sannolikheten som räknades ut tidigare.
+
+* c) Beskriv skillnanden mellan variablerna pAssault och assault.
+
+pAssault beskriver sannolikheten för olika åldersgrupper och kön att bli utsatt för misshandel. Detta medans assault beskriver om personen i ett visst index har blivit utsatt för misshandel eller inte.
+
+* d) Vilka grupper har stört respektive minst risk att utsättas för brott i vår simulerade population enligt koden ovan?
+
+Grupperna med störst risk att utsättas för våld i den simulerade populationen är män i åldersgruppen 15-24 med en sannolikhet på 12.5%. Den grupp med minst risk att utsättas för våld är kvinnor som är 45+ och män med en sannolikhet på 0.1%
+<!-- Anger sidbrytning -->
+\clearpage
+
+Vi ska också simulera en variabel som inte alls har med utsattheten för brott att göra. Lägg till variabeln stjärntecken i populationen på följane sätt:
+```{r astro, results = "markup"}
+sim_pop$astroSign <- sample(c("Skorpion", "Skytt", "Tvilling", "Stenbock", "Jungfru", "Lejon", "Oxe"), 
+                            size = length(sex), replace = TRUE)
+```
+
+* e) Förklara varför denna kod generarar en variabel som inte har något med utsattheten för brott att göra.
+
+Denna kod har inget att göra med utsattheten för brott att göra eftersom sannolikheten för ett stjärntecken är helt slumpmässigt. Detta pga att den inte tar i hänsyn till pAssault, eller någon annan slags fördelning. Det som bestämmer samplet i detta fall är vårat seed.
+
+* f) Hur **många** har varit utsatta för brott i din population totalt och i de olika åldersgrupperna? Det är dessa värden som anses vara sanningen som vi ska försöka skatta i efterföljand euppgifter.
+
+Vi får ut antalet personer som har utsatts för brott genom följande kod.
+```{r antal ettor, results = "markup"}
+knitr::opts_chunk$set(echo = T, 
+# här skriver vi ut att vi vill visa koden i denna chunk
+                      results = "hide") 
+# men vi vill inte skriva ut resultaten från koden
+
+amount_of_ones <- table(sim_pop$assault)
+# här skapar vi ett table med alla assault nollor och ettor
+amount_of_ones <- amount_of_ones[names(amount_of_ones) == 1]
+# här filtrerar vi för ettor i vårat table.
+```
+Detta är det antal som koden ovan kommer fram till: `r amount_of_ones[1]`
+
+* g) Hur stor är **andelen** som varit utsatta för brott?
+
+Andelen som utsatts för brott fås genom att ta `r amount_of_ones[1]` delat på våran populationstorlek vilket är `r length(sex)`. Detta nummer summerar till `r amount_of_ones[1]/length(sex)`. Vilket är `r (amount_of_ones[1]/length(sex))*100`%
+
+<!-- Anger sidbrytning -->
+\clearpage
+
+## Skapa en bortfallsmodell
+Vi ska nu skapa en bortfallsmodell för vår population, d.v.s. sannolikheten för att en person deltar i studien eller inte. Vi kommer nu att styra exakt hur vårt bortfall ser ut och vilka variabler som kommer påverka bortfallet, något som vi inte alls har vetskap om i en riktig urvalsundersökning.
+
+Vi gör detta genom att introducera en sannolikhet för ett svar som vi sedan använder för att simulera bortfallet i studien. Vi vet sedan tidigare att kön och åldersgrupp har en påverkan på utsattheten så vi väljer att skapa en bortfallsmodell baserat på dessa variabler.
+
+```{r bortfallsmodell, results = "markup"}
+sim_pop$response <- 0.95
+
+sim_pop$response[sim_pop$age=="15-24"] <- 0.35
+sim_pop$response[sim_pop$age=="25-34"] <- 0.5
+sim_pop$response[sim_pop$age=="35-44"] <- 0.65
+sim_pop$response[sim_pop$age=="45-54"] <- 0.85
+
+sim_pop$response <- sim_pop$response-(0.15* as.numeric(sim_pop$sex=="Man"))
+```
+* a) Beskriv respektive antaganden som en undersökning kan ha, och motivera varför/varför inte den är lämplig för vår bortfallsmodell.
+
+På den första raden så sätter vi en standardrespons för alla åldersgrupper på 95%. Sedan sätter vi responssannolikheten för åldersgrupperna 15-24, 25-34, 35-44 och 45-54. Dessa sattes till 35%, 50%, 65% och 85% respektive. Sedan sätter vi responssannolikheten 15% mindre för alla män. Beroende på vad dessa sannolikheter kommer ifrån så tror jag att det kan vara en bra bortfallsmodell. Detta för att vikterna förändras från vissa av respondenterna i fallet att man ska testa vikter.
+
+* b) Enligt den skapade modellen, vad är det för antagande vi gör om bortfallet; MCAR, MAR eller NMAR? 
+
+Det antagande vi kan göra om detta bortfall är ett NMAR, detta eftersom det inte är något bortfall som saknas, utan det är viktade bortfall. Det innebär att det är inte någon faktor som vi kan mäta som påverkar bortfallet. 
+
+* c) Vad är sannolikheten att specifikt en man i åldersgruppen 25-34 deltar i vår studie?
+
+Sannolikheten för detta är `r .5-(0.15)`, detta räknas ut genom att ta den genomsnittliga sannolikheten för en man i den åldersgruppen gånger -(.15).
+<!-- Anger sidbrytning -->
+\clearpage
+
+## Urval och simulerat bortfall
+Dra ett OSU av storlek n= 4000 från den simulerade populationen.  Detta urval kommer representerade tillfrågade individerna ur populationen. Skapa ett surveyobjekt (med allt vad det innebär) och skatta totalen och andelen i populationen som utsatts för brott med tillhörande konfidensintervall. Skatta även utsattheten i de olika åldersgrupperna. För dessa analyser förutsätter vi att alla de tillfrågade individernaockså svarade på vår undersökning.
+
+
+* a) Vad får du för resultat för punkt- och intervallskattningar för totalen och medelvärdet (andelen)? Täcker intervallen de sanna värdena, från 2.1, i populationen?
+
+
+
+```{r, echo = FALSE, message = FALSE}
+
+OSUindex <- sample(size = 4000, 1:nrow(sim_pop), replace = FALSE)
+mittUrval <- sim_pop[OSUindex,]
+
+mittUrval$respInd <- rbinom(n = length(mittUrval$response),
+                            size = 1,
+                            prob = mittUrval$response)
+```
+
+```{r, echo = FALSE}
+ones_assaulted <- table(mittUrval$assault)
+# här skapar vi ett table med alla assault nollor och ettor
+ones_assaulted <- ones_assaulted[names(ones_assaulted) == 1]
+# här filtrerar vi för ettor i vårat table.
+
+n = 4000
+k = ones_assaulted
+pbar = k/n
+SE = sqrt(pbar*(1-pbar)/n)
+E = qnorm(.975)*SE
+
+```
+
+Punktskattningen av andelen respondenter utsatta för misshandel är `r ones_assaulted` genom summan av alla respondenter (i detta fall 4000). Detta i procentenheter är `r (ones_assaulted[1]/4000)*100`%. Detta värde ligger väldigt nära vårat sanna värde som låg på `r (amount_of_ones[1]/length(sex))*100`%. Intervallskattningen av andelen räknar vi ut med en 95% konfidensnivå, detta intervall är `r (pbar + -E)*100`% och `r (pbar + E)*100`%. Vilket innebär att det skattade intervallet också täcker det sanna värdet. 
+
+* b) Hur stor svarsandel råder i undersökningen?
+
+```{r andel svar, results = "markup"}
+mittUrvalSvarande <- mittUrval[mittUrval$respInd==1, ]
+```
+
+För att ta reda på svarsandelen som råder i undersökningen använder vi av den koden som tidigare användes för att ta reda på hur många som hade råkat ut för misshandel. Den som visas ovan. Från detta kan vi se att `r ones_assaulted[1]` är antalet, och för att få ut andelen delar vi helt enkelt det numret på totalen, som i vårat fall är 4000. Detta summerar alltså till `r nrow(mittUrvalSvarande)/4000` vilket är lika med `r (nrow(mittUrvalSvarande)/4000)*100`%
+
+Skapa ett nyttsurveyobjekt(OBS! Inte ett nytt urval!) och skatta totalen och andelen utsatta för brott medtillhörande konfidensintervall.
+Eftersom vi använder oss av ett seed i denna labb så kommer vi inte skapa en ny, utan använda oss av "mittUrval". Däremot tar vi reda på andelen på samma sätt som vi gör ovan.
+
+* c) Vad händer med skattningarna jämfört med a)?
+
+
+
+
 
 
 \pagebreak
