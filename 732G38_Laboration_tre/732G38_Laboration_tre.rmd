@@ -1,0 +1,95 @@
+---
+title: "Laboration 1"
+author:
+- Åke Rosvall
+- Michael Debebe
+date: '2021-04-29'
+output:
+  pdf_document:
+    fig_caption: yes
+    number_sections: yes
+  html_document:
+    df_print: paged
+geometry: top=100pt,bottom=100pt,left=68pt,right=66pt
+subtitle: 732G38
+header-includes:
+- \usepackage{float}
+- \usepackage{longtable}
+- \usepackage{caption}
+- \usepackage{fancyhdr}
+- \usepackage{titling}
+- \usepackage[swedish, english]{babel}
+- \renewcommand{\headrulewidth}{0pt}
+- \renewcommand{\and}{\\}
+- \pretitle{\centering\vspace{0cm}{\large Labbrapport i Statistik \par}\vspace{4cm}\Huge\textbf}
+- \posttitle{\vspace{1cm}\large\textbf{}\par}
+- \preauthor{\centering\vspace{4cm}\normalsize}
+- \postauthor{\par\vspace{4cm}}
+- \predate{\centering{\normalsize Avdelningen för Statistik och maskininlärning \\
+  Institutionen för datavetenskap \\ Linköpings universitet \par}}
+- \postdate{\par\vspace{2cm}}
+- \raggedbottom
+---
+
+<!-- Väljer språk till svenska för automatiska titlar -->
+\selectlanguage{swedish}
+
+<!-- Byter språket på figur- och tabellbeskrivningar till angivna namn -->
+\captionsetup[table]{name = Tabell}
+\setcounter{table}{0}
+\captionsetup[figure]{name = Figur}
+\setcounter{figure}{0}
+
+<!-- Anger att tabellbeskrivningar hamnar ovanför tabellen -->
+\floatstyle{plaintop}
+\restylefloat{table}
+
+<!-- Anger sidnumreringens position -->
+\fancyhf{}
+\fancyfoot[C]{\thepage}
+\pagestyle{fancy}
+
+<!-- Tar bort sidnumrering för förteckningar och titelsidan -->
+\pagenumbering{gobble}
+
+<!-- Anger sidbrytning -->
+\clearpage
+
+<!-- Skapar en innehållsförteckning och anger djupet av rubrikerna som ska visas -->
+\setcounter{tocdepth}{3}
+\tableofcontents
+
+<!-- Anger sidbrytning -->
+\clearpage
+
+<!-- Börjar sidnumreringen på sida 1 efter att alla förteckningar visats -->
+\pagenumbering{arabic}
+\setcounter{page}{1}
+
+<!-- Börjar med kapitel 1 -->
+# Introduktion
+Introducera laborationen; de datamaterial som används, målen med uppgifterna och annat förberedande arbete. Detta kan inkludera inläsning av data och paket där all form av output ska vara gömt såvida inget annat anges. För att undvika att förlora värden använder vi oss också av seed nummer 1112
+
+```{r echo = FALSE, include = FALSE}
+#include = FALSE tar bort alla utskrifter som kommer från laddning av data eller paket
+options(scipen = 100)
+libraries <- c("survey", "dplyr", "ggplot2", "knitr", "GGally", "xtable", "irr", "psych")
+
+#require(libraries)
+invisible(lapply(libraries, require, character.only = TRUE))
+
+```
+
+
+<!-- Anger sidbrytning -->
+\clearpage
+
+
+\pagebreak
+
+# Lärdomar, problem, övriga kommentarer 
+Under detta kapitel kan ni ta upp de saker som ni lärt er, eventuella problem ni stött på och andra saker (kopplade till kursen) som ni tänkt på under arbetet med laborationen. Dessa tankar kan vara bra att ha när det är dags för att repetera kursen, så ni kommer ihåg saker som ni kanske hade lite problem med och fick göra någon speciallösning på eller liknande.
+
+\clearpage
+
+# Referenser
