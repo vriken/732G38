@@ -1,21 +1,19 @@
-
 ---
-title: "Laboration 1"
+title: "Laboration-1-Surveymetodik-grupp-161"
 author:
 - Åke Rosvall
 - Michael Debebe
-date: '2021-05-10'
+date: '2021-04-29'
 output:
   pdf_document:
-    latex_engine: xelatex
     fig_caption: yes
     number_sections: yes
+  word_document: default
   html_document:
     df_print: paged
 geometry: top=100pt,bottom=100pt,left=68pt,right=66pt
 subtitle: 732G38
 header-includes:
-- \usepackage[utf8]{inputenc}
 - \usepackage{float}
 - \usepackage{longtable}
 - \usepackage{caption}
@@ -62,7 +60,6 @@ header-includes:
 \setcounter{tocdepth}{3}
 \tableofcontents
 
-
 <!-- Anger sidbrytning -->
 \clearpage
 
@@ -74,166 +71,227 @@ header-includes:
 # Introduktion
 Introducera laborationen; de datamaterial som används, målen med uppgifterna och annat förberedande arbete. Detta kan inkludera inläsning av data och paket där all form av output ska vara gömt såvida inget annat anges. För att undvika att förlora värden använder vi oss också av seed nummer 1112
 
-```{r, echo = FALSE, include = FALSE}
+```{r echo = FALSE, include = FALSE}
 #include = FALSE tar bort alla utskrifter som kommer från laddning av data eller paket
 options(scipen = 100)
-libraries <- c("survey", "dplyr", "ggplot2", "knitr", "GGally", "xtable", "irr", "psych")
+libraries <- c("survey", "dplyr", "ggplot2", "knitr", "GGally", "xtable")
 
 #require(libraries)
 invisible(lapply(libraries, require, character.only = TRUE))
 
 ```
+{r sex_age, results = "markup"}
+knitr::opts_chunk$set(echo = T, 
+# här skriver vi ut att vi vill visa koden i denna chunk
+                      results = "hide") 
 
-```{r, echo = FALSE}
-agpop <- read.table("https://raw.githubusercontent.com/vriken/732G38/main/agpop.dat", header = TRUE, sep = ",")
+```{r sex_age, results = "markup"}
+knitr::opts_chunk$set(echo = T, 
+# här skriver vi ut att vi vill visa koden i denna chunk
+                      results = "hide")  # men vi vill inte skriva ut resultaten från koden)
 
-agpop <-
-  agpop %>%
-  dplyr::filter(
-    ACRES92 > 0,
-    ACRES87 > 0
-  )
-OSUindex <- sample(size = 300, 1:nrow(agpop), replace = FALSE)
+# Lite kommentarer och berakningar som inte syns i pdf filen
+#vi laddar in datat och gör lite ändringar till den, så som att ta bort bortfall m.m.
+
+agpop <-read.table("https://raw.githubusercontent.com/vriken/732G38/production/agpop.dat", header = TRUE, sep = ",")
+
+agpop <-agpop[agpop$ACRES92 > 0 & agpop$ACRES87 > 0,]
+OSUindex <-sample(size=300, 1:nrow(agpop), replace = FALSE)
 agOSUdata <- agpop[OSUindex,]
-fpc.srs <- rep(nrow(agpop), 300)
-agOSU <- svydesign(ids = ~1, data = agOSUdata, fpc = fpc.srs)
-``` 
+fpc.srs <-rep(nrow(agpop),300)
+agOSU <- svydesign(ids = ~1, data = agOSUdata, fpc =  fpc.srs)
+
+total <- svytotal(~ACRES92, design = agOSU)
+medel <- svymean(~ACRES92, design = agOSU)
+
+dennaSkaVisas <- confint(medel)
+
+byRegion <- svyby(~ACRES92, by = ~REGION, design = agOSU, FUN = svymean)
+
+```
+
+Vi skriver denna labb om datasetet agpop.dat. Datasetet handlar om olika jordbruksgårdar.
+
+Vi har hämtat datasetet agpop som består av `r nrow(agpop)` observationer. De första observationerna syns nedan.
+```{r SCB, results = 'markup'}
+opts_chunk$set(echo = FALSE)
+head(agpop,n=20, ncol = 10)  # Specifies to put the caption on top of the table
+```
 
 <!-- Anger sidbrytning -->
 \clearpage
 
-# Designeffekter
-## Skattning av designeffekten
-```{r, echo = FALSE, include = FALSE} 
-#options(digits =5)
-k <-svymean(~ACRES92, design = agOSU, deff = TRUE)
-d <- svymean(~ACRES87, design = agOSU, deff = TRUE)
-#print(k)
+
+\pagebreak
+
+
+# Uppgifter
+
+##  2.1 Urvalsprocessen i R
+
+a) Vilken information får du om surveyobjektet agOSU? Beskriv samtliga delar. Är det någon informationsom du anser saknas i detta objekt för att beskriva det urval som vi gjort?
+
+```{r echo = FALSE, results = 'markup'}
+opts_chunk$set(echo = FALSE, # här skriver vi ut att vi vill visa koden i denna chunk 
+                      results = "hide")
+itk <-as.array(summary(agpop$ACRES92))
+kable(t(itk))
 ```
-### a)  Om du skulle räkna ut designeffekten för hand, hur ser formeln ut?
 
-Designeffekten rent generellt skulle räknas ut genom 
-$$\frac{V(Estimator från samplingen)}{V(Estimator från OSU med samma nummer av observationsenheter)}$$
-Exempel för detta skulle kunna vara 
-$$\frac{V(Ybar)}{1-n/N}*\frac{s^2}{n}$$
+Vi anser att det är en självständig urvalsdesign. Sannolikheter där det som vanligt svaras på minimum, första kvartil, median, tredje kvartil och maximum.
 
-### b)  Vad får du för designeffekt? Reflektera över vad designeffekter beskriver och motivera varför du får detta resultat.
-Designeffekten som ges är 1, med andra ord, är inte designen mindre effektiv än ett hypotetiskt OSU men inte heller bättre, utan på en normal bra nivå. Designeffekten indikerar
-även hur många observationer med den komplexa urvalsdesignen som behövs för att kunna uppnå samma precision som uppnås med ett OSU, i samband med att designeffekten som gavs
-var 1 innebär det att vi inte behöver ändra på antal observationer. 
+b) Tolka dessa skattningar som du fått ut från dessa två funktioner
 
-### c)  Hur skulle du tolka det värde som du fått i b) med tanke på de två urvalsdesignerna som anges i den teoretiska formeln?
-Designeffekter beskriver urvalsdesignens effektivitet, ifall att designeffekten är mindre än 1 så indikerar det att urvalsdesignen leder till en mindre varians jämfört med ett OSU, 
-och därmed mer effektivt. Om designeffekten däremot är större än 1 så är urvalsdesignen mindre effektiv än ett OSU. Desto större designeffekten är, desto större 
-urval behövs för att uppnå samma effektivitet som vid ett OSU. En designeffekt på till exempel 6 innebär att man måste multiplicera urvalsstorleken med 6 för att kunna uppnå 
-samma effektivitet som vid ett OSU.
+```{r echo = FALSE, results = 'markup'}
+opts_chunk$set(echo = FALSE, # här skriver vi ut att vi vill visa koden i denna chunk 
+                      results = "hide")
+kable(svymean(~ACRES92, design = agOSU))
+kable(svytotal(~ACRES92, design = agOSU)) 
+```
 
+Vi påstår att medelfelet är högt i förhållande till det medelvärde och totalvärde vi jämför med.
+
+ c) Vad får du för konfidensintervall? Täcker intervallet det sanna värdet i populationen du dragit ditturval från?
+
+Konfidensintervallet som retuernas återfinns i tabellen nedan
+Vi räknar ut detta med hjälp av funktionen `confint() vars standardkonfidens ligger på 95%
+```{r echo = FALSE,eval=FALSE}
+results = 'markup'}
+opts_chunk$set(echo = FALSE, # här skriver vi ut att vi vill visa koden i denna chunk 
+                      results = "hide")
+kable(dennaSkaVisas)
+```
 <!-- Anger sidbrytning -->
 \clearpage
 
-## Kvotskattning
-"Vi kan med hjälp av tidigare insamlad information öka precisionen i våra skattningar. För kvotskattningen kan vi ta hjälp av en hjälpvariabel
-för att skatta variabeln ``ACRES92`` med bättre precision. Det första steget i denna metod måste vi skatta kvoten mellan mät- och hjälpvariabeln med funktionen
-``svyratio()``.
-För att använda denna kvot med vår kända populationstotal från hjälpvariabeln använder vi sedan funktionen ``predict()``.
-Denna funktion använder alltså vår kvotskattning tillsammans med en totalmängd som vi känner till för hela populationen för att skatta mätvariabeln."
 
-Detta görs med följande kod 
-``kvotEstimatorn <- svyratio(numerator = ~ACRES92, denominator = ~ACRES87, design = agOSU)``
-``predict(object = kvotEstimatorn, total = sum(agpop$ACRES87))``
+\pagebreak
+##  2.2 Skattningar i redovisningsgrupper
 
-```{r, echo = FALSE, include = FALSE}
-kvotEstimatorn <- svyratio(numerator = ~ACRES92, denominator = ~ACRES87, design = agOSU)
-prediction <- predict(object = kvotEstimatorn, total = sum(agpop$ACRES87))
+a) Skapa variabeln NonLargeFarms med koden nedan och skatta medelvärdet i populationen med tillhörande konfidensintervall. Tolka intervallet och jämför med det sanna medelvärdet.
 
 
-icc(agOSUdata[,3:14], model ="twoway",
-    type = "agreement", unit = "single")
+
+
+```{r echo = FALSE}
+agOSU$variables$nonLargeFarms <- agOSU$variables$FARMS92 - agOSU$variables$LARGEF92
+meanLargeFarms <- svymean(~nonLargeFarms, design = agOSU)
+kable(meanLargeFarms)
 ```
-### a) Beräkna korrelationen mellan mät- och hjälpvariabeln och motivera ifall kvotskattning är en lämplig skattningsmetod
+Här visas på vänster sida medelvärdet och på höger sida medelfelet. Vi tolkar detta som att medelvärdet för stora jordbruksgårdar är likt det sanna medelvärdet för populationen.
+<!-- Anger sidbrytning -->
+\clearpage
 
-Kvotskattning kan bedömas som en lämplig skattningsmetod ifall kvoten är mellan .75 och 1. Kvotens möjliga värden ligger mellan 0 ≤ kvoten ≤ 1.
-Här beräknar vi ICC (intraclass correlation coefficient). Detta görs med formeln 
-$$ICC = 1 - \frac{M}{M-1} \frac{SSW}{SSTO}$$
-Där M är antal ssus, 
-SSW är summan av kvadradetrna inom klustrena,
-och SSTO är totala summan av kvadradetrna.
 
-Utifrån intra-klass korrelationkoefficienten kan vi bedöma att de 12 jordbruk som jämfördes på 300 olika observationer. Fanns det en undermålig enighet
-mellan bruken, genom att använda en två-vägs slumpmodell fick vi ut ett ICC-värde på 0.124, samt ett p-värde på $$1.54*10^-17$$
+\pagebreak
+##  2.3 Skattningar i redovisningsgrupper
 
-### b)  Vad får du för precision om du använder en kvotskattning jämför med ett vanligt OSU? Varför får du denna skillnad?
+ a) Finns det någon skillnad mellan de olika regionerna när det gäller ytan som används för jordbruk? Vilken region har störst yta för jordbruk i urvalet?
 
-Det normaliserade medelfelet som vi fick från våran skattning, alltså 0.005475556. Vilket vi kan dela med 1, $$\frac{1}{0.005475556}$$. Vilket blir $$182.6299$$.
-Vilket kan tolkas som att precisionen av skattningen är extremt hög.
 
-Medelfelet som vi fick från vårat OSU var 19123 och kvoten av 1/19123 är $$.00005229305$$. Vilket är en extremt låg precision.
-Detta talar alltså i förmån till klusterurvalet, med en väldigt stor signifikans.
+```{r echo = FALSE, results = "asis"}
+print(xtable(head(byRegion), caption="En tabell med data som visar skillnaderna mellan regionerna"), 
+    include.rownames = FALSE, # Removes the row numbering 
+    table.placement = "H", # Specifies the placement of the table, note that these two commands need to be placed inside the print() and not the xtable()
+    comment = FALSE,
+    caption.placement = "top")  # Specifies to put the caption on top of the table
+```
+Från detta kan vi säga att det finns en skillnad mellan regionerna. Bedömt till värdena att den region med störst yta är region väst foljt av centrala delarna av den nordliga regionen.
 
-### c) Beräkna designeffekten för hand för skattningen i a) och tolka den.
 
-Vi beräknar design effekten genom följande formel. $$Deff \approx 1 + (\bar{m} – 1)\rho$$
-där $$\bar{m}$$ är medel klusterstorleken, och $$\rho$$ är ICC. 
+b) Vilka skillnader finns det mellan att använda subset() och svyby()? Bör det bli en skillnad med tanke på att två olika funktioner använts?
+
+När man använder svyby har man en möjlighet att välja vad datasetet ska sorteras på och vilken eventuell funktion som ska användas i samband med funktionen. Detta betyder alltså att det kan finnas skillnader på funktionerna, men utan några speciella förfrågningar gör dem samma sak.
+<!-- Anger sidbrytning -->
+\clearpage
+
+
+\pagebreak
+##  2.4 Estimatorers bias, varians och täckningsgrad.
+
+a) Beräkna täckningsgraden för intervallskattningen, d.v.s. andelen utav urvalen där det skattade konfidensintervallet täcker det sanna värdet. Vad förväntar du dig för värde och hur bör dessa värden relatera till varandra?
 ```{r, echo = FALSE}
-m <- agOSUdata %>% group_by(STATE) %>%
-  summarise(n = n()) %>%
-  summarise(m = mean(n))
-
-rho <- as.numeric(icc(agOSUdata[,3:14], model ="twoway",
-    type = "agreement", unit = "single")[7])
-
-DEFF <- 1 + (as.integer(m) - 1) * rho
-knitr::kable(DEFF, col.names = "Designeffekt")
+func <-function(urvalsstorlek, antalet_urvalet, pop){
+  urvalsstorlek <- 400
+  antal_urval <- 10000
+  andlighetskorrektion <- rep(nrow(agpop), urvalsstorlek)
+  spara <- matrix(data = NA, nrow = antal_urval, ncol = 2)
+  
+  for(nr in 1:antal_urval){
+    urval <- sample(x = 1:nrow(agpop),
+                    size = urvalsstorlek,
+                    replace = FALSE)
+    survey_objekt <- svydesign(ids = ~1,
+                               data = agpop[urval, c("ACRES92", "ACRES87")],
+                               fpc = andlighetskorrektion)
+    medel <- svymean(~ACRES92, survey_objekt)
+    konfidens_intervall <- confint(medel, level = 0.9)
+    # Om sanna värdet täcks av intervallet blir resultatet av funktionen 1,
+    # därav == 1 för att generera en TRUE/FALSE vektor
+    tacker_intervallet <- findInterval(x = mean(pop),
+                                       vec = konfidens_intervall) == 1
+    spara[nr,] <- c(medel[1], tacker_intervallet)
+  }
+  
+  return(spara)
+}
 ```
-Här kan vi se att designeffekten är `r DEFF`. Detta innebär att om man skulle dra ett OSU istället för klusterurvalet i frågan skulle man behöva dra N*`r DEFF` observationer
 
-### c) Skatta medelvärdet med hjälp av kvotestimatorn? Tolka resultatet.
+```{r, echo = FALSE}
+numberList <- matrix(func(10000,400,agpop$ACRES92)[,1])
+onesAndZeros <- matrix(func(10000,400,agpop$ACRES92)[,2])
+combined <- as.data.frame(cbind(numberList,onesAndZeros))
+placeholder <- filter(combined, V2 ==0 )
+täckningsgrad <-placeholder/10000
+colnames(combined) <-c("Medelvärde", "Intervalltäckande")
 
-Skattningen av medelvärdet med hjälp av kvotestimatorn fås genom att dela totalvärdet som finns i kvotestimatorn delat på antal observationer gånger antal bruk.
-Alltså $$`r as.numeric(prediction[1])`/`r ncol(agOSUdata[3:14])`*`r nrow(agOSUdata)`$$.
-Vilket är lika med 264436.7. Detta innebär alltså att det skattade antal tunnland per gård är ungefär 26400
+
+```
 
 
+Antal medelvärdesskattningar som inte täcker de verkliga spannet är `r nrow(placeholder)` av 10000 fall, vilket innebär att teckningsgraden `r 1-nrow(placeholder)/10000`% 
+
+b) Visualisera medelvärdesskattningar i ett histogram. Lägg också in det sanna medelvärdet i diagrammet som en vertikallinje. Motivera varför detta diagram bevisar eller motbevisar centrala gränsvärdessatsen
+```{r, echo = FALSE, message=FALSE}
+musten <-ggplot(data = combined, aes(x = Medelvärde)) +
+  geom_histogram() +
+  xlab("Medelvärde") +
+  theme_bw() +
+  ylab("Antal") +
+  geom_vline(xintercept = combined$vline, linetype = "dashed") +
+  ggtitle("Medelvärdesskattningar", subtitle = "Med sanna medelvärde")+
+  geom_vline(xintercept = mean(agpop$ACRES92), linetype="dashed")
+print(musten)
+
+```
+Histogrammet bevisar tydligt centrala gränsvärdessatsen, som i grund och botten säger att om det adderas ett stort antal oberoende slumpmässiga variabler med ändliga varianser kommer summan att gå mot en normalfördelning som tydligt visas i histogrammet.
+
+c) Beräkna det genomsnittliga värdet på samtliga 10 000 medelvärdesskattningar. Vad förväntar du dig för värde? Vilka slutsatser kan vi dra om skattningsmetoden utifrån denna jämförelse?
+```{r, echo=FALSE}
+kable(mean(combined$Medelvärde))
+```
+
+Det vi förväntade oss var ett medelvärde som skulle liga nära det sanna medelvärdet +- något medelfel, detta medelfel kommer att räknas ut i nästa uppgift. Vi tror ochså att medelvärdet kommer ligga nära den vertikala linje som syns i histogramet
+
+
+d) Beräkna det teoretiska medelfelet för y¯S
+
+```{r, echo = FALSE}
+skattatError <- sqrt((1-300/3042)*(var(agpop$ACRES92)/300))
+
+sannaValues <- c(sd(combined$Medelvärde), mean(combined$Medelvärde))
+skattadeValues <- c(skattatError, "310104")
+
+kable(skattatError)
+```
+
+e) Beräkna standardavvikelsen för de 10 000 medelvärdesskattningar som skapats i simuleringen. Hur relaterar du detta värde till det som beräknats i d?
+```{r, echo=FALSE}
+kable(sd(combined$Medelvärde))
+```
+Värdena ligger förvånadesvärt nära varandra vilket tyder på att formeln fungerar väldigt bra och att medelvärdet ska fungera att använda som en standardavvikelse när man vill räkna ut ett 95 % konfidensintervall i form av att när en population är större än 30 och fördelningern ser ut att vara normalfördelad finns 95 % av värdena inom 2 standardavvikelser/medelfel.
 <!-- Anger sidbrytning -->
 \clearpage
-
-# Stratifierat urval
-
-## Surveyobjekt
-
-### a) Använd funktionen summary() för att få information om det stratifierade surveyobjektet. 
-Vilkaskillnader finns jämfört med objektet gjort på ett OSU? Är det någon information som du anser
-saknas från det nuvarande objektet?
-
-### b) Hur stor är den största respektive den minsta vikten i surveyobjektet?
-
-### c) Vad motsvarar dessa vikter i praktiken?
-
-## Skattningar
-
-### a) Presentera resultaten av dessa skattningar tillsammans med samma skattningar från Laboration 1 OSU.
-Vilka är de största skillnaderna mellan dem?
-
-
-### b) Vad får du för designeffekt med denna nya design? Hur tolkar du detta värde?
-
-
-### c) Finns det några skillnader i skattning och medelfel jämfört med resultaten från uppgift 2.3 i laboration 1?
-
-### d) Jämför denna skattning med resultatet från svyby()-funktionen där vi försöker skatta samma regionsom en redovisningsgrupp. 
-Får du samma resultat? Varför/varför inte?
-
-## Allokering
-
-### a) Presentera en tabell med de beräknade nh, Nh och sh.
-
-### b) Vad får du för skattning och designeffekt?
-
-### c) Blir det bättre eller sämre att använda de egenskapade kategorierna eller REGION som stratifieringsvariabel?
-Varför?
-
-### d) Finns det några andra sätt att förbättra stratifieringen än det vi gjort?
-
 
 
 \pagebreak
