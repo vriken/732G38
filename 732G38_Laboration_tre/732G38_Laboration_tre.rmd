@@ -77,7 +77,7 @@ libraries <- c("survey", "dplyr", "ggplot2", "knitr", "GGally", "xtable", "irr",
 
 #require(libraries)
 invisible(lapply(libraries, require, character.only = TRUE))
-set.seed(666)
+#set.seed(666)
 
 ```
 
@@ -92,7 +92,7 @@ load(url("https://github.com/vriken/732G38/blob/production/732G38_Laboration_tre
 
 # Bortfallsstudie med simulerade data
 
-## Simulera populationen
+## Simulera populationen 
 Det som demonstreras nedan är R som kompenserar för bortfall för ett flertal kategoriska variabler.
 
 "Vi kommer inledningsvis simulera den population som vi kommer utgå från i resterande laboration. Vi utgårifrån egenskaper för Linköping kommuns befolkningsdata från 2018 (SCB)."
@@ -230,6 +230,8 @@ Sannolikheten för detta är `r .5-(0.15)`, detta räknas ut genom att ta den ge
 Dra ett OSU av storlek n= 4000 från den simulerade populationen.  Detta urval kommer representerade tillfrågade individerna ur populationen. Skapa ett surveyobjekt (med allt vad det innebär) och skatta totalen och andelen i populationen som utsatts för brott med tillhörande konfidensintervall. Skatta även utsattheten i de olika åldersgrupperna. För dessa analyser förutsätter vi att alla de tillfrågade individernaockså svarade på vår undersökning.
 
 
+
+
 * a) Vad får du för resultat för punkt- och intervallskattningar för totalen och medelvärdet (andelen)? Täcker intervallen de sanna värdena, från 2.1, i populationen?
 
 
@@ -242,7 +244,14 @@ mittUrval <- sim_pop[OSUindex,]
 mittUrval$respInd <- rbinom(n = length(mittUrval$response),
                             size = 1,
                             prob = mittUrval$response)
+
+urval <- sample(x = 1:nrow(sim_pop),
+                size = 4000,
+                replace = FALSE)
+AK <- rep(nrow(sim_pop), 4000)
 ```
+
+
 
 ```{r, echo = FALSE}
 ones_assaulted <- table(mittUrval$assault)
@@ -268,12 +277,57 @@ mittUrvalSvarande <- mittUrval[mittUrval$respInd==1, ]
 
 För att ta reda på svarsandelen som råder i undersökningen använder vi av den koden som tidigare användes för att ta reda på hur många som hade råkat ut för misshandel. Den som visas ovan. Från detta kan vi se att `r ones_assaulted[1]` är antalet, och för att få ut andelen delar vi helt enkelt det numret på totalen, som i vårat fall är 4000. Detta summerar alltså till `r nrow(mittUrvalSvarande)/4000` vilket är lika med `r (nrow(mittUrvalSvarande)/4000)*100`%
 
-Skapa ett nyttsurveyobjekt(OBS! Inte ett nytt urval!) och skatta totalen och andelen utsatta för brott medtillhörande konfidensintervall.
-Eftersom vi använder oss av ett seed i denna labb så kommer vi inte skapa en ny, utan använda oss av "mittUrval". Däremot tar vi reda på andelen på samma sätt som vi gör ovan.
+
+Här kan vi också se summeringen för vårat urval.
+```{r, echo = FALSE}
+kable(summary(mittUrval[,3:7]))
+```
+
+
+Skapa ett nytt surveyobjekt (OBS! Inte ett nytt urval!) och skatta totalen och andelen utsatta för brott med tillhörande konfidensintervall.
+
+Här skapar vi vårat survey objekt. AK är våran ändlishetskorrektion med storlek 4000
+```{r, results = "markup"}
+survey_objekt <- svydesign(ids = ~1,
+                           data = sim_pop[urval, c("sex", "age", "pAssault", "assault", "astroSign", "response")],
+                           fpc = AK)
+```
+
+```{r, echo = FALSE}
+survey_objekt$variables$respInd <- rbinom(n = length(mittUrval$response),
+                            size = 1,
+                            prob = mittUrval$response)
+```
 
 * c) Vad händer med skattningarna jämfört med a)?
 
+```{r, echo = FALSE}
+ones_assaulted_object <- table(survey_objekt$variables$assault)
+ones_assaulted_object <- ones_assaulted_object[2]
+# här skapar vi ett table med alla assault ettor
 
+objektSvarande <- survey_objekt[survey_objekt$variables$respInd == 1,]
+# här kollar vi hur många från vårat objekt som har svarat
+
+n = 4000
+k = ones_assaulted_object
+pbar = k/n
+SE = sqrt(pbar*(1-pbar)/n)
+E = qnorm(.975)*SE
+```
+
+Andelen respondenter utsatta för brott ligger på `r (ones_assaulted_object/nrow(survey_objekt))*100`%. Vilket också på ungefär samma värde som vårat a) värde. Svarsandelen som råder bland vårat objekt är `r (nrow(objektSvarande)/nrow(survey_objekt))*100`%, vilket också ligger väldigt nära vårat värde i a). Hitills har vi inte kunnat se någon stor skillnad på objektet och de skattade i a)
+
+
+* d) Vilken sammanfattande effekt verkar bortfallet ha på skattningarna? Täcker intervallen det sanna värdet nu?
+
+Intervallet ligger nu på med 95% konfidens mellan `r (pbar + -E)*100`% och `r (pbar + E)*100`%. Vilket innebär att det skattade intervallet också täcker det sanna värdet. Men är lite högre.
+
+* e) Skatta totalen och tillhörande intervall per åldersgrupp och jämför med de sanna värdena. Tolka resultatet.
+
+## Bortfallsanalys
+
+Förmodligen har du sett att resultaten förändrats och nästa steg blir att försöka analysera hur och varför eller som det också kallas: vi ska nu göra en bortfallsanalys
 
 
 
