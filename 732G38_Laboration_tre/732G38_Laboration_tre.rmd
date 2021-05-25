@@ -77,7 +77,7 @@ libraries <- c("survey", "dplyr", "ggplot2", "knitr", "GGally", "xtable", "irr",
 
 #require(libraries)
 invisible(lapply(libraries, require, character.only = TRUE))
-#set.seed(666)
+set.seed(666)
 
 ```
 
@@ -214,7 +214,7 @@ sim_pop$response <- sim_pop$response-(0.15* as.numeric(sim_pop$sex=="Man"))
 ```
 * a) Beskriv respektive antaganden som en undersökning kan ha, och motivera varför/varför inte den är lämplig för vår bortfallsmodell.
 
-På den första raden så sätter vi en standardrespons för alla åldersgrupper på 95%. Sedan sätter vi responssannolikheten för åldersgrupperna 15-24, 25-34, 35-44 och 45-54. Dessa sattes till 35%, 50%, 65% och 85% respektive. Sedan sätter vi responssannolikheten 15% mindre för alla män. Beroende på vad dessa sannolikheter kommer ifrån så tror jag att det kan vara en bra bortfallsmodell. Detta för att vikterna förändras från vissa av respondenterna i fallet att man ska testa vikter.
+På den första raden så sätter vi en standardrespons för alla åldersgrupper på 95%. Sedan sätter vi responssannolikheten för åldersgrupperna 15-24, 25-34, 35-44 och 45-54. Dessa sattes till 35%, 50%, 65% och 85% respektive. Sedan sätter vi responssannolikheten 15% mindre för alla män. Om vi antar att sannolikheterna är beprövade, så tycker vi att modellen är lämplig. Detta för att vikterna förändras från vissa av respondenterna i fallet att man ska testa vikter.
 
 * b) Enligt den skapade modellen, vad är det för antagande vi gör om bortfallet; MCAR, MAR eller NMAR? 
 
@@ -325,18 +325,124 @@ Intervallet ligger nu på med 95% konfidens mellan `r (pbar + -E)*100`% och `r (
 
 * e) Skatta totalen och tillhörande intervall per åldersgrupp och jämför med de sanna värdena. Tolka resultatet.
 
+Här har vi den skattade totalen, där vi kan se ett skattat medelfel på 293
+````{r, echo = FALSE}
+svytotal(~assault, formula =~age,design=survey_objekt)
+````
+
+```{r, echo = F}
+```
+
 ## Bortfallsanalys
 
 Förmodligen har du sett att resultaten förändrats och nästa steg blir att försöka analysera hur och varför eller som det också kallas: vi ska nu göra en bortfallsanalys
 
+```{r regressionsmodell, results = "markup"}
+bortfallsanalys <-glm(respInd ~ age + sex + astroSign,
+                      family = binomial(logit),
+                      data = mittUrval)
+summary(bortfallsanalys) 
+```
+* a) Genom att titta på p-värdena för vardera parameterskattning, vilka variabler har ett signifikant samband med svarsfrekvensen?
 
+De variabler som inte har ett signifikant p-värde blir i vårt fall stjärntecknena, varför R i detta fall svarar med dessa signifikanta p-värden bedöms bero på att stjärnteckena som var slumpvariabler inte bara hamnade hos tex en åldersgrupp utan hamnade hos både såväl åldersgruppen 55-64 som 15-24, i samband med detta blir det väldigt stora skillnader vad gäller utsattheten mellan respondenter som har samma stjärntecken.
 
+b) Stämmer detta med den bortfallsmodell som vi skapade tidigare i laborationen?
 
-\pagebreak
+I det tidigare simulerade bortfallet såg vi ett bortfall på `r (nrow(objektSvarande)/nrow(survey_objekt))*100`. Från summeringen ovan kan vi se ett bortfall på ungefär 42.9%. Detta är en kanske stor skillnad, och därmed stämmer den inte överens med den tidigare skapade bortfallsmodellen.
 
-# Lärdomar, problem, övriga kommentarer 
-Under detta kapitel kan ni ta upp de saker som ni lärt er, eventuella problem ni stött på och andra saker (kopplade till kursen) som ni tänkt på under arbetet med laborationen. Dessa tankar kan vara bra att ha när det är dags för att repetera kursen, så ni kommer ihåg saker som ni kanske hade lite problem med och fick göra någon speciallösning på eller liknande.
+# Bortfallskalibrering
+
+## Beräkna populationstotalerna
+
+```{r popoulationstotalerna, results="markup"}
+mod_mat <- model.matrix(~as.factor(age) + as.factor(sex), sim_pop)
+pop_vector <- colSums(mod_mat)
+```
+
+Det fattas enligt metoden som använts, `r length(pop_vector)` observationer.
+
+## Kalibreringsmodell
+
+Nu är vi redo att kalibrera det surveyobjekt med endast de svarande individerna som vi skapade i uppgift
+2.3. Vi har alltså ett surveyobjekt med de svarandes information samt en vektor med populationstotalerna
+för varje bakgrundsvariabel som vi ansåg påverkade svarsfrekvensen.
+För att kalibrera skattningarna använder vi funktionen calibrate() från surveypaketet och de argument
+som krävs är;
+• det surveyobjekt som ska kalibreras,
+• den modell som ska användas (utan den beroende (mät)variabeln)
+• vektorn innehållande alla populationstotaler.
+
+Observera återigen att vi måste använda exakt samma ordning på de förklarande variablerna i calibrate()
+som användes i model.matrix() i 3.1 för att kalibreringen ska fungera.
+```{r sa, results = "markup"}
+calMittUrvalSvarande <- calibrate(survey_objekt,
+formula = ~age +~sex,
+population = pop_vector)
+```
+
+Nu är surveyobjektet kalibrerat, utifrån age och sex, och sparat som calMittUrvalSvarande. Detta nya
+objekt kan vi använda för att skatta totaler och andelar för populationen med samma funktioner som tidigare,
+svytotal() och svymean().
+Skatta totala antalet och andelen utsatta för brott med tillhörande konfidensintervall och spara dessa värden.
+```{r skatta, results="markup"}
+skattatotalen <-svytotal(~assault, design =calMittUrvalSvarande, deff = TRUE)
+skattaandelen <-svymean(~assault,design=calMittUrvalSvarande, deff = TRUE)
+skattatotalen
+skattaandelen
+````
+
+Lägga till onödiga variabler
+Skapa en ny kalibreringsmodell där vi också lägger till astroSign i kalibreringsmodellen, en variabel som
+uppenbart är fel att lägga till givet den bortfallsmodell som vi skapade i 4.3.
+Skatta totala antalet och andelen utsatta för brott med tillhörande konfidensintervall och spara dessa värden.
+```{r onodiga, results="mark up"}
+nycal <- calibrate(survey_objekt,
+formula = ~age +~sex+~astroSign,
+population = pop_vector)
+skattattotalen <-svytotal(~assault, design =nycal, deff = FALSE)
+skattatandelen <-svymean(~assault,design=nycal, deff = FALSE)
+skattattotalen
+skattatandelen
+````
+\pagebreak    
+
+Kalibrera med en tom modell
+Skapa en ny kalibreringsmodell där inga variabler läggs till. En tom modell utan variabler anges med:
+```{r tom, results="mark up"}
+tomcal <- calibrate(survey_objekt,
+formula = ~1,
+population = pop_vector)
+tomtotal <-svytotal(~assault, design =tomcal, deff = FALSE)
+tomandel <-svymean(~assault,design=tomcal, deff = FALSE)
+tomtotal
+tomandel
+````
+
+### Frågor
+Sammanställ en tabell för totalen och en för andelen som innehåller:
+• punktskattning,
+• nedre och övre gräns av intervallet
+från vardera en utav de tre kalibreringsmodellerna samt de icke-kalibrerade skattningarna från 2.3 c)
+```{r fragor, results="mark up"}
+uff <-rbind(tomtotal,skattattotalen,skattatotalen,tomandel,skattaandelen,skattatandelen)
+kable(uff)
+```
+
+* a) Tolka denna tabell och diskutera hur olika kalibreringsmodeller påverkar skattningarna.
+* b) Vilka intervall täcker de sanna värdena? Varför?
+
+* c) Vad betyder den tomma kalibreringsmodellen?
+Den tomma kalibreringsmodellen innebär att det inte sker en filtrering på variabler utan att samtliga observationer i studien är med.
+
+* d) Vilket antagande om bortfall (MCAR, MAR eller NMAR) innebär de olika kalibreringsmodellerna?
+MCAR innebär att bortfallet är helt slumpmässogt och med detta faktum kan resultatet generaliseras mot större populationer och korrekta slutsatser kan dras, detta är dock ganska otroligt i vårt fall.
+MAR: Missing at random, bortfallet varierar med en känd oberoende variabel som går att använda för att justera för bortfallet. Om exempelvis längd ska mätas och ne fullt observerad oberoende variabel är kön där mämn har ett större bortfall gentemot kvinnor och slumpmässighet kan antas i båda grupperna. I detta fall krävs då att beinga på variabeln kön.
+NMAR: Not missing at random: Här kanbortfallet inte ses som slumpmässigt baserat på vad som är känt utan det finns en systematisk skevhet, därför kan inte någon formuleras som med tillförlighet kan ersätta de saknade värdena. Misstanken finns att det föreligger skillnader mellan svarande och icke svarande.
 
 \clearpage
 
 # Referenser
+Hagevi, Magnus. 2011. Den Svenska Väljaren. 1. uppl. Umeå: Boréa.
+
+Irlander, Åsa, and Thomas Hvitfeldt. 2012. NTU 2011 : Om Utsatthet, Trygghet Och Förtroende. Stockholm: Brottsförebyggande rådet.
