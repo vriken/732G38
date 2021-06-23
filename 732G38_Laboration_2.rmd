@@ -1,0 +1,342 @@
+---
+title: "Laboration-2-Surveymetodik-grupp-161"
+author:
+- Åke Rosvall
+- Michael Debebe
+date: '2021-06-17'
+output:
+  pdf_document:
+    fig_caption: yes
+    number_sections: yes
+  word_document: default
+  html_document:
+    df_print: paged
+geometry: top=100pt,bottom=100pt,left=68pt,right=66pt
+subtitle: 732G38
+header-includes:
+- \usepackage{float}
+- \usepackage{longtable}
+- \usepackage{caption}
+- \usepackage{fancyhdr}
+- \usepackage{titling}
+- \usepackage[swedish, english]{babel}
+- \renewcommand{\headrulewidth}{0pt}
+- \renewcommand{\and}{\\}
+- \pretitle{\centering\vspace{0cm}{\large Labbrapport i Statistik \par}\vspace{4cm}\Huge\textbf}
+- \posttitle{\vspace{1cm}\large\textbf{}\par}
+- \preauthor{\centering\vspace{4cm}\normalsize}
+- \postauthor{\par\vspace{4cm}}
+- \predate{\centering{\normalsize Avdelningen för Statistik och maskininlärning \\
+  Institutionen för datavetenskap \\ Linköpings universitet \par}}
+- \postdate{\par\vspace{2cm}}
+- \raggedbottom
+---
+
+<!-- Väljer språk till svenska för automatiska titlar -->
+\selectlanguage{swedish}
+
+<!-- Byter språket på figur- och tabellbeskrivningar till angivna namn -->
+\captionsetup[table]{name = Tabell}
+\setcounter{table}{0}
+\captionsetup[figure]{name = Figur}
+\setcounter{figure}{0}
+
+<!-- Anger att tabellbeskrivningar hamnar ovanför tabellen -->
+\floatstyle{plaintop}
+\restylefloat{table}
+
+<!-- Anger sidnumreringens position -->
+\fancyhf{}
+\fancyfoot[C]{\thepage}
+\pagestyle{fancy}
+
+<!-- Tar bort sidnumrering för förteckningar och titelsidan -->
+\pagenumbering{gobble}
+
+<!-- Anger sidbrytning -->
+\clearpage
+
+<!-- Skapar en innehållsförteckning och anger djupet av rubrikerna som ska visas -->
+\setcounter{tocdepth}{3}
+\tableofcontents
+
+<!-- Anger sidbrytning -->
+\clearpage
+
+<!-- Börjar sidnumreringen på sida 1 efter att alla förteckningar visats -->
+\pagenumbering{arabic}
+\setcounter{page}{1}
+
+<!-- Börjar med kapitel 1 -->
+# Introduktion
+Datamaterialet vi ska analysera i denna laboration är en jordbruksserie från USA. 
+
+```{r, echo = FALSE, include = FALSE}
+#include = FALSE tar bort alla utskrifter som kommer från laddning av data eller paket
+options(scipen = 100)
+libraries <- c("survey", "dplyr", "ggplot2", "knitr", "GGally", "xtable", "irr", "psych")
+
+#require(libraries)
+invisible(lapply(libraries, require, character.only = TRUE))
+
+```
+
+```{r, echo = FALSE, include = FALSE}
+agpop <- read.table("https://raw.githubusercontent.com/vriken/732G38/main/agpop.dat", header = TRUE, sep = ",")
+``` 
+
+
+# Designeffekter
+```{r, echo = FALSE, include = FALSE}
+OSUindex <- sample(size = 300, 1:nrow(agpop), replace = FALSE)
+agOSUdata <- agpop[OSUindex,]
+fpc.srs <- rep(nrow(agpop), 300)
+agOSU <- svydesign(ids = ~1, data = agOSUdata, fpc = fpc.srs)
+```
+
+
+## Skattning av designeffekten
+
+* a)
+
+Designeffekten skulle räknas ut för hand genom 
+$$\frac{V(Estimator från samplingen)}{V(Estimator från OSU med samma nummer av observationsenheter)}$$
+Detta kan också visas som; 
+$$\frac{V(Ybar)}{1-n/N}*\frac{s^2}{n}$$
+
+
+* b)
+
+Designeffekten som ges är ``1``, med andra ord, är inte designen mindre effektiv än ett hypotetiskt OSU men inte heller bättre, utan på en normal bra nivå. Eftersom att designeffekten som gavs var ``1`` innebär det att vi inte behöver ändra på antal observationer. 
+
+* c) 
+
+Med tanke på de urvalsdesigner som anges i den teoretiska formeln tolkar vi det värdet som vi har fått i b) (1). Med att båda designer är lika bra i detta fall. Detta innebär alltså också att inga fler observationer behöver läggas till eller tas bort.
+
+## Kvotskattning
+
+Först skattar vi kvoten mellan mät- och hjälpvariabeln med funktionen svyratio(). m
+```{r, results = "markup"}
+ratio.ACRES92 <- svyratio(numerator = ~ACRES92, 
+                          denominator = ~ACRES87, 
+                          design = agOSU)
+```
+
+För att sedan använda denna kvot med våran populationstotal från hjälpvariabeln använder vi sedan funtkionen predict(). Denna funtkion använder våran kvotskattning (uträknat ovan) tillsammans med en totalmängd som vi känner till för hela populationen för att skatta mätvariabeln. Från detta ser vi alltså den skattade totalen och det skattade medelfelet.
+```{r, results = "markup"}
+predict(object = ratio.ACRES92, 
+        total = sum(agpop$ACRES87))
+```
+
+* a)
+
+Den uträknade korrelationen mellan mät- och hjälpvariabeln är ``0.9726488``1
+Vilket innebär att kvotskattning är en marginellt sämre skattningsmetod.
+
+* b)
+
+Standardfelet som har räknats ut under kvotskattningen är ``0.007019604``. Vilket innebär att precisionen är ``1-.007....`` vilket är lika med ``0.9929804`` Vilket menar att precisionen är väldigt hög, ungefär 99.3%
+
+* c)
+
+Som beskrivet ovan räknas designeffekten ut för hand genom $$\frac{V(Ybar)}{1-n/N}*\frac{s^2}{n}$$
+I fallet som vi har här skulle då effekten räknas ut $$\frac{~5450000}{1-300/3078}*\frac{0.00004927484}{300} $$
+Vilket blir ``.991829....`` ~99. Vilket kan anvrundas till 1, och därmed kommer fram till ungefär samma resultat som förut. Att det är en marginellt sämre DEFF.
+
+* d)
+
+
+```{r, results = "markup"}
+kvot_medel <- svymean(~ACRES92, design = agOSU, deff = .991829)[1]
+```
+
+
+```{r, echo = FALSE}
+print(kvot_medel)
+```
+
+
+
+# Stratifierat urval
+
+## Surveyobjekt
+
+Vi kommer att använda oss av stratifieringsvariabeln REGION som innehåller fyra olika stratum. Allokeringsmetoden som vi börjar med är Neymanallokering. Detta görs med hjälp av koden nedan
+
+```{r, results = "markup"}
+STRATAindex <- stratsample(strata = agpop$REGION,
+counts = c("NC" = 69, "NE" = 7, "S" = 122, "W" = 102))
+agSTRATAdata <- agpop[STRATAindex,]
+```
+
+Vi kommer också att sätta fpc för samtliga varianser, detta avser nu populationsstorlekarna för respektive strata. Detta görs med hjälp av koden nedan.
+
+```{r, results = "markup"}
+fpc.strata<-numeric(300)
+fpc.strata[agSTRATAdata$REGION=="NC"] <- 1049
+fpc.strata[agSTRATAdata$REGION=="NE"] <- 209
+fpc.strata[agSTRATAdata$REGION=="S"] <- 1370
+fpc.strata[agSTRATAdata$REGION=="W"] <- 414
+```
+
+```{r, results = "markup"}
+agSTRAT<-svydesign(~1, strata = ~REGION, fpc = fpc.strata, data = agSTRATAdata)
+```
+
+
+* a)
+
+Nedan ser vi summeringen för det stratifierade urvalet. Jämfört med vårat tidigare OSU där sannolikheterna dragna från populationen. Där i detta fall stratifieringen baseras på antalet observationers vikter per strata, vilket är väldigt tydligt i max och min. Vi tycker inte att något saknas från objektet. 
+```{r, results = "markup"}
+summary(agSTRAT)
+```
+
+
+* b)
+
+nedan beräknar vi vikterna för våran strata och sparar de i viktvariabeln och sorterar vikterna från minsta till största
+```{r, results = "markup"}
+vikt <- weights(agSTRAT, type = "sampling")
+sort(vikt, decreasing = FALSE)
+```
+Här kan vi alltså se att den minsta vikten är 4.0588.. och den största vikten är 29.8571..
+
+* c)
+
+Detta innebär vilken del av stratumtotalerna per region som urvalet tillåter. Med andra ord antalet urvalsobjekt som företräder i populationerna per objekt.
+
+
+## Skattningar
+
+* a)
+
+Nedan skattar vi populationens medelvärde med hjälp av det stratifierade urvalet
+```{r, results = "markup"}
+svymean(~ACRES92, design = agSTRAT, deff = TRUE)
+```
+Och här skattar vi populationens medelvärde med hjälp av det obundna slumpmässiga urvalet
+```{r, results = "markup"}
+svymean(~ACRES92, design = agOSU, deff = TRUE)
+```
+Vi kan se att det skattade med hjälp av stratifierade är bättre, detta syns både i medelfelet och i designeffekten. Där skattningen med det stratifierade urvalet har en design effekt på ungefär 60%
+
+
+* b)
+
+Precis som beskriver ovan är de skattade värden med hjälp av det stratifierade urvalet bättre eftersom designeffekten är 60% jämfört med 100% med OSU.
+
+* c)
+
+För att de dessa skillnader kan vi jämföra med hjälp av svyby() i stratan för populationsmedelvärden per regioner och jämföra det med OSU populationsmedelvärden per region.
+
+Här visar vi de skattade populationsmedelvärden för våra regioner i samtliga stratan
+```{r, results = "markup"}
+svyby(~ACRES92, by = ~REGION, design = agSTRAT, FUN = svymean)
+```
+
+Och här visar vi de skattade populationsmedelvärden för regionerna med slumpmässigt obundet urval.
+```{r, results = "markup"}
+svyby(~ACRES92,  by = ~REGION, design = agOSU, FUN = svymean)
+```
+
+Utifrån dessa tabeller kan vi se att det är rätt så stora skillnader, den mest märkbara skillnaden syns i den västra regionen. Detta tycks eftersom samtliga regioner förutom just den västra har sett en ökning. Även samtliga medelfel har ökat när vi jämför med OSU.
+
+Nedan väjer vi ut regionen NC från våra stratan. Och sedan visar vi det skattade medelvärdet för denna region.
+```{r, results = "markup"}
+agSTRAT_NC <- subset(agSTRAT, REGION == "NC")
+svymean(~ACRES92, design = agSTRAT_NC)
+```
+
+
+* d)
+
+Om vi jämför dessa värden med de som vi fick ovan så kan vi se att de stämmer överens. Detta är för att vi gör samma sak men med olika funtkioner och variabler. Detta kan vara värdefullt om man har väldigt stora dataset och inte är intresserade utav alla variabler.
+
+
+## Allokering
+
+Det första vi gör är att kategorisera våran variabel ACRES87 i diverse klasser. Detta för att funktionen cut() ska kunna användas.
+```{r, results = "markup"}
+agpop$myStrata <- cut(agpop$ACRES87,c(0,100000,400000, Inf), include.lowest=TRUE)
+head(agpop$myStrata)
+```
+Vi kan se att värdena från ACRES87 har blivit kategoriserade in i tre olika värden. noll till 100000, 100000 till 400000 och 400000+
+
+* a)
+
+Nedan skapar vi en ny tabell med antalet från alla kategoriserade variabler.
+
+```{r, results = "markup"}
+#först sätter vi alla värden till ett, två eller tre. Detta för att enkelt kunna sätta antalet i en tabell
+agpop$num_Strata <- as.numeric(agpop$myStrata)
+amount_table <- as.table(c(
+  #antalet obs 0 - 100000
+  length(which(agpop$num_Strata == 1)),
+  #obs 100000 - 400000
+  length(which(agpop$num_Strata == 2)),
+  #obs 400000+
+  length(which(agpop$num_Strata == 3))))
+rownames(amount_table) = c("0 - 100000", 
+                           "100000 - 400000", 
+                           "400000+")
+amount_table
+```
+Nu har vi det vi behöver för att kunna räkna ut en neymanallokering. Detta räknas ut genom 
+$$n*\frac{(N_h*s_h)}{\sum(N_h*s_h)}$$
+```{r, echo = FALSE}
+n = 300
+n_s <- c(11.755, 61.72, 226.525)
+N_h <- c(amount_table[[1]],
+         amount_table[[2]],
+         amount_table[[3]])
+s_h <- c(27474, 82805, 642405)
+
+big_n <- c(n_s,N_h,s_h)
+```
+
+Vi vet också från tidigare att vårat lilla n är 300. $$N_h$$ är populationsmängd i strata h, $$s_h$$ är standardaavvikelsen i strata h. Alltså är $$\sum(N_h*s_h)$$ lika med $$598094267$$
+n1 är $$\frac{853*27474}{598094267}300 = 11.755$$
+n2 är $$\frac{1486*82805}{598094267}300 = 61.72$$
+n3 är $$\frac{703*642405}{598094267}300 = 226.525$$.
+Vi kan också testa för n1+n2+n3 och se att det summerar till 300.
+
+Nedan presenterar vi en tabell för våra stratan.
+
+```{r, results = "markup"}
+strata_result_frame <- matrix(big_n,
+                              nrow = 3, ncol = 3,
+                              dimnames = list(c("n1","n2","n3"), c("n_h","N_h","s_h")))
+strata_result_frame
+```
+
+Nedan berättar vi vilken slags stratifiering vi ska använda (i detta fall våran neymanallokering).
+```{r, results = "markup"}
+num_STRATAindex <- stratsample(strata = agpop$num_Strata,
+                               counts = c("1" = 11.755,
+                                          "2" = 61.720,
+                                          "3" = 226.525))
+num_agSTRATAdata <- agpop[num_STRATAindex,]
+```
+
+Nedan bestämmer vi populationsstorlekarna för samtliga stratan.
+```{r, results = "markup"}
+num_fpcSTRATA <- n
+num_fpcSTRATA[num_agSTRATAdata$num_Strata == "1"] <- 853
+num_fpcSTRATA[num_agSTRATAdata$num_Strata == "2"] <- 1486
+num_fpcSTRATA[num_agSTRATAdata$num_Strata == "3"] <- 703
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
