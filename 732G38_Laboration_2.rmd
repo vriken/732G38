@@ -320,15 +320,22 @@ num_agSTRATAdata <- agpop[num_STRATAindex,]
 
 Nedan bestämmer vi populationsstorlekarna för samtliga stratan.
 ```{r, results = "markup"}
-num_fpcSTRATA <- n
+num_fpcSTRATA <- 300
 num_fpcSTRATA[num_agSTRATAdata$num_Strata == "1"] <- 853
 num_fpcSTRATA[num_agSTRATAdata$num_Strata == "2"] <- 1486
 num_fpcSTRATA[num_agSTRATAdata$num_Strata == "3"] <- 703
 ```
 
 
+* c)
+Nedan skattar vi totalen per region. Vi kan tyda att skattningen är mer effektiv än tidigare, vilket beror på våra egna kategorier. Detta tyds i ett nästan halverat medelvärde, och DEFF har satt sig på ungefär 0.6. 
+```{r, results = "markup"}
+svytotal(~ACRES92, design = agSTRAT, deff = TRUE)
+```
 
+* d)
 
+Vi skulle kunna testat flera kategorier för lägre designeffekt. Det man också skulle kuna ha gjort var att använda färre stratifieringar.
 
 
 
